@@ -47,12 +47,6 @@ jobs:
           git add -A data/ config.json
           git diff --cached --quiet || (git commit -m "chore: update strategy data $(date +%Y-%m-%d)" && git push)
 
-      - name: Setup Pages
-        if: github.ref == 'refs/heads/main'
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
-
       - name: Upload artifact
         if: github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@v3
