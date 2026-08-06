@@ -1,0 +1,37 @@
+{
+    "strategy": {
+        "name": "创业板/中证红利 轮动策略",
+        "description": "基于创业板指数与中证红利指数比值的轮动策略",
+        "index_growth": {
+            "name": "创业板指数",
+            "code": "399006",
+            "market": "sz",
+            "sina_code": "sz399006",
+            "sina_codes": ["sz399006"]
+        },
+        "index_dividend": {
+            "name": "中证红利指数",
+            "code": "000922",
+            "market": "sh",
+            "sina_code": "sh000922",
+            "sina_codes": ["sh000922"]
+        }
+    },
+    "thresholds": {
+        "lower": 0.35,
+        "upper": 0.6,
+        "description": "R = 创业板指数 / 中证红利指数。R < 下限切换至创业板，R > 上限切换至中证红利"
+    },
+    "position": {
+        "levels": 9,
+        "description": "9档仓位，1档=全红利，9档=全创业板，每档约11.1%"
+    },
+    "wechat": {
+        "webhook_url": "${WECHAT_WEBHOOK_URL}",
+        "enabled": true
+    },
+    "data": {
+        "history_file": "data/history.json",
+        "signals_file": "data/signals.json"
+    }
+}

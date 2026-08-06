@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>创业板/中证红利 轮动策略</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            color: #e0e0e0;
+            padding: 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header {
+            text-align: center;
+            padding: 30px 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            margin-bottom: 24px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .header h1 {
+            font-size: 28px;
+            background: linear-gradient(90deg, #00d2ff, #3a7bd5);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+        .header .subtitle { color: #8892b0; font-size: 14px; }
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .card h2 {
+            font-size: 18px;
+            margin-bottom: 16px;
+            color: #ccd6f6;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .card h2::before {
+            content: '';
+            width: 4px;
+            height: 18px;
+            background: linear-gradient(180deg, #00d2ff, #3a7bd5);
+            border-radius: 2px;
+        }
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .metric-box {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .metric-box:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+        }
+        .metric-label { font-size: 12px; color: #8892b0; margin-bottom: 8px; }
+        .metric-value {
+            font-size: 28px;
+            font-weight: 700;
+            background: linear-gradient(90deg, #64ffda, #00d2ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .metric-value.big { font-size: 36px; }
+        .metric-value.warning { background: linear-gradient(90deg, #ffd700, #ffa500); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .metric-value.danger { background: linear-gradient(90deg, #ff6b6b, #ee5a52); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .metric-value.success { background: linear-gradient(90deg, #51cf66, #40c057); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .metric-unit { font-size: 14px; color: #8892b0; margin-left: 4px; }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .info-row:last-child { border-bottom: none; }
+        .info-label { color: #8892b0; }
+        .info-value { color: #ccd6f6; font-weight: 500; }
+        .position-bar {
+            display: flex;
+            height: 40px;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 16px 0;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        .position-bar .growth {
+            background: linear-gradient(90deg, #3a7bd5, #00d2ff);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            color: white;
+            font-size: 13px;
+            transition: width 0.5s ease;
+        }
+        .position-bar .dividend {
+            background: linear-gradient(90deg, #ff6b6b, #ee5a52);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            color: white;
+            font-size: 13px;
+            transition: width 0.5s ease;
+        }
+        .position-legend {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            font-size: 13px;
+            color: #8892b0;
+        }
+        .position-legend span { display: flex; align-items: center; gap: 6px; }
+        .legend-dot { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+        .legend-dot.growth { background: linear-gradient(90deg, #3a7bd5, #00d2ff); }
+        .legend-dot.dividend { background: linear-gradient(90deg, #ff6b6b, #ee5a52); }
+        #chart { width: 100%; height: 360px; }
+        .signals-table { width: 100%; border-collapse: collapse; }
+        .signals-table th, .signals-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .signals-table th {
+            color: #8892b0;
+            font-weight: 500;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .signals-table td { font-size: 14px; }
+        .tag {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .tag.growth { background: rgba(58, 123, 213, 0.2); color: #64b5f6; }
+        .tag.dividend { background: rgba(255, 107, 107, 0.2); color: #ff8a80; }
+        .tag.hold { background: rgba(255, 215, 0, 0.2); color: #ffd54f; }
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: #5a6380;
+            font-size: 12px;
+        }
+        .loading { text-align: center; padding: 60px; color: #8892b0; }
+        .loading .spinner {
+            width: 40px; height: 40px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top-color: #00d2ff;
+            border-radius: 50%;
+            display: inline-block;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @media (max-width: 768px) {
+            .header h1 { font-size: 22px; }
+            .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+            .metric-value.big { font-size: 28px; }
+            #chart { height: 280px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📈 创业板 / 中证红利 轮动策略</h1>
+            <div class="subtitle">基于指数比值 R 的动态仓位管理</div>
+        </div>
+
+        <div id="loading" class="card loading">
+            <div class="spinner"></div>
+            <p style="margin-top:16px;">正在加载策略数据...</p>
+        </div>
+
+        <div id="content" style="display:none;">
+            <div class="metrics-grid">
+                <div class="metric-box">
+                    <div class="metric-label">R 值</div>
+                    <div class="metric-value big" id="r-value">--</div>
+                    <div class="metric-unit" style="font-size:11px;">R = 创业板 / 红利</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-label">当前信号</div>
+                    <div class="metric-value" id="signal-value">--</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-label">仓位档位</div>
+                    <div class="metric-value" id="position-level">--</div>
+                </div>
+                <div class="metric-box">
+                    <div class="metric-label">日期</div>
+                    <div class="metric-value" id="date-value" style="font-size:20px;">--</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>仓位配置</h2>
+                <div class="position-bar" id="position-bar">
+                    <div class="growth" id="pos-growth" style="width:50%;">创业板 50%</div>
+                    <div class="dividend" id="pos-dividend" style="width:50%;">红利 50%</div>
+                </div>
+                <div class="position-legend">
+                    <span><i class="legend-dot growth"></i> 创业板指数 (399006)</span>
+                    <span><i class="legend-dot dividend"></i> 中证红利指数 (000922)</span>
+                </div>
+                <div style="margin-top:16px;">
+                    <div class="info-row">
+                        <span class="info-label">创业板指数价格</span>
+                        <span class="info-value" id="growth-price">--</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">中证红利指数价格</span>
+                        <span class="info-value" id="dividend-price">--</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">阈值区间</span>
+                        <span class="info-value" id="threshold-range">0.35 ~ 0.60</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">阈值说明</span>
+                        <span class="info-value">R＜0.35 → 创业板 | R＞0.60 → 红利</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>R 值历史走势</h2>
+                <div id="chart"></div>
+            </div>
+
+            <div class="card">
+                <h2>最近信号记录</h2>
+                <div style="overflow-x:auto;">
+                    <table class="signals-table">
+                        <thead>
+                            <tr>
+                                <th>日期</th>
+                                <th>时间</th>
+                                <th>R值</th>
+                                <th>信号</th>
+                                <th>仓位</th>
+                            </tr>
+                        </thead>
+                        <tbody id="signals-body">
+                            <tr><td colspan="5" style="text-align:center;color:#8892b0;padding:30px;">暂无数据</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="footer">
+                <p>策略基于 R = 创业板指数 ÷ 中证红利指数 的比值进行轮动</p>
+                <p>数据每日 14:30 (北京时间) 更新 · 仅供参考，不构成投资建议</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function loadData() {
+            try {
+                const [historyResp, signalsResp] = await Promise.all([
+                    fetch('data/history.json?t=' + Date.now()).catch(() => null),
+                    fetch('data/signals.json?t=' + Date.now()).catch(() => null)
+                ]);
+                const history = historyResp && historyResp.ok ? await historyResp.json() : [];
+                const signals = signalsResp && signalsResp.ok ? await signalsResp.json() : [];
+                if (!history.length) {
+                    document.getElementById('loading').innerHTML = '<p style="padding:40px;">暂无数据，请等待首次执行完成</p>';
+                    return;
+                }
+                renderData(history, signals);
+            } catch (err) {
+                document.getElementById('loading').innerHTML = '<p style="padding:40px;color:#ff6b6b;">加载数据失败: ' + err.message + '</p>';
+            }
+        }
+
+        function renderData(history, signals) {
+            const latest = history[history.length - 1];
+            const rValue = latest.r_value;
+            const lower = latest.threshold_lower;
+            const upper = latest.threshold_upper;
+
+            document.getElementById('r-value').textContent = rValue.toFixed(4);
+            const signalEl = document.getElementById('signal-value');
+            signalEl.textContent = latest.signal_desc || latest.signal;
+            const signalClass = latest.signal_type === 'growth' ? 'success' :
+                               latest.signal_type === 'dividend' ? 'danger' : 'warning';
+            signalEl.className = 'metric-value ' + signalClass;
+
+            document.getElementById('position-level').textContent = latest.position_level + '档';
+            document.getElementById('date-value').textContent = latest.date;
+
+            document.getElementById('growth-price').textContent = latest.growth_price.toFixed(2);
+            document.getElementById('dividend-price').textContent = latest.dividend_price.toFixed(2);
+            document.getElementById('threshold-range').textContent = lower + ' ~ ' + upper;
+
+            const ratio = (rValue - lower) / (upper - lower);
+            const clampedRatio = Math.max(0, Math.min(1, ratio));
+            const growthPct = Math.round(clampedRatio * 100);
+            const dividendPct = 100 - growthPct;
+            document.getElementById('pos-growth').style.width = growthPct + '%';
+            document.getElementById('pos-growth').textContent = '创业板 ' + growthPct + '%';
+            document.getElementById('pos-dividend').style.width = dividendPct + '%';
+            document.getElementById('pos-dividend').textContent = '红利 ' + dividendPct + '%';
+
+            renderSignalsTable(signals);
+            renderChart(history, lower, upper);
+
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('content').style.display = 'block';
+        }
+
+        function renderSignalsTable(signals) {
+            const tbody = document.getElementById('signals-body');
+            if (!signals.length) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#8892b0;padding:30px;">暂无信号记录</td></tr>';
+                return;
+            }
+            tbody.innerHTML = signals.slice(0, 20).map(s => {
+                const tagClass = s.signal_type === 'growth' ? 'growth' :
+                                s.signal_type === 'dividend' ? 'dividend' : 'hold';
+                return '<tr>' +
+                    '<td>' + s.date + '</td>' +
+                    '<td>' + (s.time || '--') + '</td>' +
+                    '<td>' + s.r_value.toFixed(4) + '</td>' +
+                    '<td><span class="tag ' + tagClass + '">' + s.signal_desc + '</span></td>' +
+                    '<td>' + s.position_level + '档</td>' +
+                    '</tr>';
+            }).join('');
+        }
+
+        function renderChart(history, lower, upper) {
+            const chart = echarts.init(document.getElementById('chart'));
+            const dates = history.map(h => h.date);
+            const rValues = history.map(h => h.r_value);
+            const growthPrices = history.map(h => h.growth_price);
+            const dividendPrices = history.map(h => h.dividend_price);
+
+            const option = {
+                tooltip: {
+                    trigger: 'axis',
+                    backgroundColor: 'rgba(20, 30, 60, 0.9)',
+                    borderColor: 'rgba(100, 255, 218, 0.3)',
+                    textStyle: { color: '#e0e0e0' }
+                },
+                legend: {
+                    data: ['R值', '阈值下限', '阈值上限'],
+                    textStyle: { color: '#8892b0' },
+                    top: 0
+                },
+                grid: { left: 50, right: 50, top: 50, bottom: 30 },
+                xAxis: {
+                    type: 'category',
+                    data: dates,
+                    axisLabel: { color: '#8892b0', fontSize: 11 },
+                    axisLine: { lineStyle: { color: 'rgba(255,255,255,0.1)' } }
+                },
+                yAxis: {
+                    type: 'value',
+                    name: 'R值',
+                    nameTextStyle: { color: '#8892b0' },
+                    axisLabel: { color: '#8892b0' },
+                    splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } }
+                },
+                series: [
+                    {
+                        name: 'R值',
+                        type: 'line',
+                        data: rValues,
+                        smooth: true,
+                        lineStyle: { color: '#00d2ff', width: 2 },
+                        areaStyle: {
+                            color: {
+                                type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+                                colorStops: [
+                                    { offset: 0, color: 'rgba(0, 210, 255, 0.3)' },
+                                    { offset: 1, color: 'rgba(0, 210, 255, 0.02)' }
+                                ]
+                            }
+                        },
+                        itemStyle: { color: '#00d2ff' },
+                        symbol: 'circle',
+                        symbolSize: 6
+                    },
+                    {
+                        name: '阈值下限',
+                        type: 'line',
+                        data: new Array(dates.length).fill(lower),
+                        lineStyle: { color: '#ff6b6b', type: 'dashed', width: 1.5 },
+                        itemStyle: { color: '#ff6b6b' },
+                        symbol: 'none'
+                    },
+                    {
+                        name: '阈值上限',
+                        type: 'line',
+                        data: new Array(dates.length).fill(upper),
+                        lineStyle: { color: '#51cf66', type: 'dashed', width: 1.5 },
+                        itemStyle: { color: '#51cf66' },
+                        symbol: 'none'
+                    }
+                ]
+            };
+            chart.setOption(option);
+            window.addEventListener('resize', () => chart.resize());
+        }
+
+        loadData();
+        setInterval(loadData, 300000);
+    </script>
+</body>
+</html>
