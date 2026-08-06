@@ -201,8 +201,8 @@ def push_wechat(webhook_url, message):
         return False
     try:
         payload = {
-            "msgtype": "markdown",
-            "markdown": {"content": message}
+            "msgtype": "text",
+            "text": {"content": message}
         }
         resp = requests.post(webhook_url, json=payload, timeout=10)
         result = resp.json()
@@ -258,30 +258,22 @@ def backtest_strategy(history, lower, upper):
     return total
 
 
-def build_markdown_message(record, config, optimal=None):
+def build_text_message(record, config, optimal=None):
     thresholds = config["thresholds"]
     lines = []
-    lines.append(f"## 📊 {config['strategy']['name']}")
-    lines.append("")
-    lines.append(f"**日期**: {record['date']}")
-    lines.append(f"**时间**: {record['time']}")
-    lines.append("")
-    lines.append(f"| 指数 | 价格 |")
-    lines.append(f"|------|------|")
-    lines.append(f"| 创业板指数 | {record['growth_price']:.2f} |")
-    lines.append(f"| 中证红利指数 | {record['dividend_price']:.2f} |")
-    lines.append("")
-    lines.append(f"**R 值**: `{record['r_value']:.4f}`")
-    lines.append(f"**阈值区间**: {thresholds['lower']} ~ {thresholds['upper']}")
-    lines.append("")
-    lines.append(f"**信号**: **{record['signal_desc']}**")
-    lines.append(f"**仓位**: {record['position_level']}档 ({record['position_desc']})")
-    lines.append("")
+    lines.append(f"【{config['strategy']['name']}】")
+    lines.append(f"日期: {record['date']} {record['time']}")
+    lines.append(f"")
+    lines.append(f"创业板指数: {record['growth_price']:.2f}")
+    lines.append(f"中证红利指数: {record['dividend_price']:.2f}")
+    lines.append(f"R值: {record['r_value']:.4f}")
+    lines.append(f"阈值区间: {thresholds['lower']} ~ {thresholds['upper']}")
+    lines.append(f"")
+    lines.append(f"信号: {record['signal_desc']}")
+    lines.append(f"仓位: {record['position_level']}档 ({record['position_desc']})")
     if optimal:
-        lines.append(f"---")
-        lines.append(f"**💡 历史回测优化阈值**: `{optimal['lower']}` ~ `{optimal['upper']}` (得分: {optimal['score']:.4f})")
-        lines.append("")
-    lines.append(f"> R = 创业板指数 ÷ 中证红利指数")
+        lines.append(f"")
+        lines.append(f"回测优化阈值: {optimal['lower']} ~ {optimal['upper']} (得分: {optimal['score']:.4f})")
     return "\n".join(lines)
 
 
@@ -369,7 +361,7 @@ def main():
 
     if config["wechat"]["enabled"]:
         print("\n正在推送企业微信...")
-        message = build_markdown_message(record, config, optimal)
+        message = build_text_message(record, config, optimal)
         push_wechat(config["wechat"]["webhook_url"], message)
 
     print("\n" + "=" * 50)
