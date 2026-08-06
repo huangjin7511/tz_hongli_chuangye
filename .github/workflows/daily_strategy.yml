@@ -39,8 +39,8 @@ jobs:
 
       - name: Commit data files
         run: |
-          git config user.name: "github-actions[bot]"
-          git config user.email: "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -A data/ config.json
           git diff --cached --quiet || (git commit -m "chore: update strategy data $(date +%Y-%m-%d)" && git push)
 
