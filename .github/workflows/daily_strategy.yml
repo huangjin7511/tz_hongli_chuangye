@@ -2,7 +2,8 @@ name: 轮动策略每日执行
 
 on:
   schedule:
-    - cron: "30 6 * * *"
+    - cron: '00 14 * * *'
+      timezone: 'Asia/Shanghai'   # 直接写上海时间 14:00
   workflow_dispatch:
 
 permissions:
