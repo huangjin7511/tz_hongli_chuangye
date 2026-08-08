@@ -58,5 +58,20 @@
     "position_desc": "中证红利（满仓）",
     "threshold_lower": 0.35,
     "threshold_upper": 0.6
+  },
+  {
+    "date": "2026-08-08",
+    "time": "06:35:14",
+    "timestamp": "2026-08-08T06:35:14.548611",
+    "growth_price": 3563.116,
+    "dividend_price": 5506.75,
+    "r_value": 0.647,
+    "signal": "切换至中证红利",
+    "signal_type": "dividend",
+    "signal_desc": "切换至中证红利",
+    "position_level": 1,
+    "position_desc": "中证红利（满仓）",
+    "threshold_lower": 0.35,
+    "threshold_upper": 0.6
   }
 ]
