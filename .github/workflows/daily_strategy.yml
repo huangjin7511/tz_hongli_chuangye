@@ -3,7 +3,7 @@ name: 轮动策略每日执行
 on:
   schedule:
     - cron: '00 14 * * *'
-      timezone: 'Asia/Shanghai'   # 直接写上海时间 14:00
+      timezone: 'Asia/Shanghai'
   workflow_dispatch:
 
 permissions:
@@ -25,6 +25,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # ========== 新增：判断是否为交易日 ==========
+      - name: Check if today is a trading day
+        id: check_trading_day
+        run: |
+          TODAY=$(TZ='Asia/Shanghai' date '+%Y-%m-%d')
+          # 使用免费交易日历API（也可替换为其他数据源）
+          RESPONSE=$(curl -s "https://tool.bitefu.net/jiari/?d=${TODAY}&type=1")
+          if [ "$RESPONSE" != "1" ]; then
+            echo "Today ($TODAY) is NOT a trading day. Exiting gracefully."
+            exit 0   # 正常退出，不会导致 workflow 失败
+          fi
+          echo "Today is a trading day. Proceeding."
+          echo "IS_TRADING_DAY=true" >> "$GITHUB_OUTPUT"
+      # ==========================================
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -36,12 +51,14 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run strategy
+        if: steps.check_trading_day.outputs.IS_TRADING_DAY == 'true'
         env:
           WECHAT_WEBHOOK_URL: ${{ secrets.WECHAT_WEBHOOK_URL }}
         run: |
           python strategy.py
 
       - name: Commit data files
+        if: steps.check_trading_day.outputs.IS_TRADING_DAY == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -49,7 +66,7 @@ jobs:
           git diff --cached --quiet || (git commit -m "chore: update strategy data $(date +%Y-%m-%d)" && git push)
 
       - name: Upload artifact
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && steps.check_trading_day.outputs.IS_TRADING_DAY == 'true'
         uses: actions/upload-pages-artifact@v3
         with:
           path: .
