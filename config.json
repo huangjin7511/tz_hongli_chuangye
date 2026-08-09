@@ -18,8 +18,8 @@
         }
     },
     "thresholds": {
-        "lower": 0.35,
-        "upper": 0.6,
+        "lower": 0.33,
+        "upper": 0.62,
         "description": "R = 创业板指数 / 中证红利指数。R < 下限切换至创业板，R > 上限切换至中证红利"
     },
     "position": {
