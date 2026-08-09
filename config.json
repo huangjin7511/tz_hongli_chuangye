@@ -23,8 +23,11 @@
         "description": "R = 创业板指数 / 中证红利指数。R < 下限切换至创业板，R > 上限切换至中证红利"
     },
     "position": {
-        "levels": 9,
-        "description": "9档仓位，1档=全红利，9档=全创业板，每档约11.1%"
+        "index_pct": 0.8,
+        "cash_pct": 0.2,
+        "rebalance_annual": true,
+        "rebalance_drift": 0.05,
+        "description": "80%指数 + 20%现金，年度再平衡 + 偏移5%再平衡"
     },
     "wechat": {
         "webhook_url": "${WECHAT_WEBHOOK_URL}",

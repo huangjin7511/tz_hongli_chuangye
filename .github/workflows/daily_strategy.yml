@@ -2,7 +2,8 @@ name: 轮动策略每日执行
 
 on:
   schedule:
-    - cron: "30 6 * * *"
+    - cron: '00 14 * * *'
+      timezone: 'Asia/Shanghai'
   workflow_dispatch:
 
 permissions:
@@ -13,6 +14,9 @@ permissions:
 concurrency:
   group: "pages"
   cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   run-strategy:
@@ -31,22 +35,19 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run strategy
+      - name: Check trading day & Run strategy
         env:
           WECHAT_WEBHOOK_URL: ${{ secrets.WECHAT_WEBHOOK_URL }}
         run: |
+          python -c "from strategy import is_trading_day; exit(0 if is_trading_day() else 1)" || (echo "Today is not a trading day, skipping..." && exit 0)
           python strategy.py
 
       - name: Commit data files
         run: |
-          git config user.name: "github-actions[bot]"
-          git config user.email: "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -A data/ config.json
           git diff --cached --quiet || (git commit -m "chore: update strategy data $(date +%Y-%m-%d)" && git push)
-
-      - name: Setup Pages
-        if: github.ref == 'refs/heads/main'
-        uses: actions/configure-pages@v4
 
       - name: Upload artifact
         if: github.ref == 'refs/heads/main'

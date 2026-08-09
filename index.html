@@ -103,7 +103,7 @@
             margin: 16px 0;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
         }
-        .position-bar .growth {
+        .position-bar .index-part {
             background: linear-gradient(90deg, #3a7bd5, #00d2ff);
             display: flex;
             align-items: center;
@@ -113,13 +113,13 @@
             font-size: 13px;
             transition: width 0.5s ease;
         }
-        .position-bar .dividend {
-            background: linear-gradient(90deg, #ff6b6b, #ee5a52);
+        .position-bar .cash-part {
+            background: linear-gradient(90deg, #4a5568, #2d3748);
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: 600;
-            color: white;
+            color: #a0aec0;
             font-size: 13px;
             transition: width 0.5s ease;
         }
@@ -132,8 +132,8 @@
         }
         .position-legend span { display: flex; align-items: center; gap: 6px; }
         .legend-dot { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
-        .legend-dot.growth { background: linear-gradient(90deg, #3a7bd5, #00d2ff); }
-        .legend-dot.dividend { background: linear-gradient(90deg, #ff6b6b, #ee5a52); }
+        .legend-dot.index { background: linear-gradient(90deg, #3a7bd5, #00d2ff); }
+        .legend-dot.cash { background: linear-gradient(90deg, #4a5568, #2d3748); }
         #chart { width: 100%; height: 360px; }
         .signals-table { width: 100%; border-collapse: collapse; }
         .signals-table th, .signals-table td {
@@ -159,6 +159,16 @@
         .tag.growth { background: rgba(58, 123, 213, 0.2); color: #64b5f6; }
         .tag.dividend { background: rgba(255, 107, 107, 0.2); color: #ff8a80; }
         .tag.hold { background: rgba(255, 215, 0, 0.2); color: #ffd54f; }
+        .rebalance-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+            background: rgba(255, 215, 0, 0.2);
+            color: #ffd54f;
+        }
+        .rebalance-badge.none { background: rgba(160, 174, 192, 0.1); color: #8892b0; }
         .footer {
             text-align: center;
             padding: 20px;
@@ -187,7 +197,7 @@
     <div class="container">
         <div class="header">
             <h1>📈 创业板 / 中证红利 轮动策略</h1>
-            <div class="subtitle">基于指数比值 R 的动态仓位管理</div>
+            <div class="subtitle">80%指数 + 20%现金 | 年度再平衡 + 偏移5%再平衡</div>
         </div>
 
         <div id="loading" class="card loading">
@@ -207,8 +217,8 @@
                     <div class="metric-value" id="signal-value">--</div>
                 </div>
                 <div class="metric-box">
-                    <div class="metric-label">仓位档位</div>
-                    <div class="metric-value" id="position-level">--</div>
+                    <div class="metric-label">资产配置</div>
+                    <div class="metric-value" id="position-level" style="font-size:22px;">--</div>
                 </div>
                 <div class="metric-box">
                     <div class="metric-label">日期</div>
@@ -219,12 +229,12 @@
             <div class="card">
                 <h2>仓位配置</h2>
                 <div class="position-bar" id="position-bar">
-                    <div class="growth" id="pos-growth" style="width:50%;">创业板 50%</div>
-                    <div class="dividend" id="pos-dividend" style="width:50%;">红利 50%</div>
+                    <div class="index-part" id="pos-index" style="width:80%;">指数 80%</div>
+                    <div class="cash-part" id="pos-cash" style="width:20%;">现金 20%</div>
                 </div>
                 <div class="position-legend">
-                    <span><i class="legend-dot growth"></i> 创业板指数 (399006)</span>
-                    <span><i class="legend-dot dividend"></i> 中证红利指数 (000922)</span>
+                    <span><i class="legend-dot index"></i> 指数仓位 (80%)</span>
+                    <span><i class="legend-dot cash"></i> 现金仓位 (20%)</span>
                 </div>
                 <div style="margin-top:16px;">
                     <div class="info-row">
@@ -240,8 +250,12 @@
                         <span class="info-value" id="threshold-range">0.35 ~ 0.60</span>
                     </div>
                     <div class="info-row">
-                        <span class="info-label">阈值说明</span>
+                        <span class="info-label">切换规则</span>
                         <span class="info-value">R＜0.35 → 创业板 | R＞0.60 → 红利</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">再平衡状态</span>
+                        <span class="info-value" id="rebalance-status">--</span>
                     </div>
                 </div>
             </div>
@@ -261,7 +275,7 @@
                                 <th>时间</th>
                                 <th>R值</th>
                                 <th>信号</th>
-                                <th>仓位</th>
+                                <th>再平衡</th>
                             </tr>
                         </thead>
                         <tbody id="signals-body">
@@ -272,8 +286,8 @@
             </div>
 
             <div class="footer">
-                <p>策略基于 R = 创业板指数 ÷ 中证红利指数 的比值进行轮动</p>
-                <p>数据每日 14:30 (北京时间) 更新 · 仅供参考，不构成投资建议</p>
+                <p>策略基于 R = 创业板指数 ÷ 中证红利指数 的比值进行轮动，80%指数+20%现金</p>
+                <p>交易日 14:30 (北京时间) 更新 · 仅供参考，不构成投资建议</p>
             </div>
         </div>
     </div>
@@ -302,6 +316,8 @@
             const rValue = latest.r_value;
             const lower = latest.threshold_lower;
             const upper = latest.threshold_upper;
+            const indexPct = (latest.index_pct || 0.8) * 100;
+            const cashPct = (latest.cash_pct || 0.2) * 100;
 
             document.getElementById('r-value').textContent = rValue.toFixed(4);
             const signalEl = document.getElementById('signal-value');
@@ -310,21 +326,26 @@
                                latest.signal_type === 'dividend' ? 'danger' : 'warning';
             signalEl.className = 'metric-value ' + signalClass;
 
-            document.getElementById('position-level').textContent = latest.position_level + '档';
+            var indexLabel = latest.signal_type === 'growth' ? '创业板' :
+                             latest.signal_type === 'dividend' ? '中证红利' : '持有';
+            document.getElementById('position-level').textContent = indexLabel + ' ' + indexPct + '% + 现金 ' + cashPct + '%';
             document.getElementById('date-value').textContent = latest.date;
 
             document.getElementById('growth-price').textContent = latest.growth_price.toFixed(2);
             document.getElementById('dividend-price').textContent = latest.dividend_price.toFixed(2);
             document.getElementById('threshold-range').textContent = lower + ' ~ ' + upper;
 
-            const ratio = (rValue - lower) / (upper - lower);
-            const clampedRatio = Math.max(0, Math.min(1, ratio));
-            const growthPct = Math.round(clampedRatio * 100);
-            const dividendPct = 100 - growthPct;
-            document.getElementById('pos-growth').style.width = growthPct + '%';
-            document.getElementById('pos-growth').textContent = '创业板 ' + growthPct + '%';
-            document.getElementById('pos-dividend').style.width = dividendPct + '%';
-            document.getElementById('pos-dividend').textContent = '红利 ' + dividendPct + '%';
+            document.getElementById('pos-index').style.width = indexPct + '%';
+            document.getElementById('pos-index').textContent = indexLabel + ' ' + indexPct + '%';
+            document.getElementById('pos-cash').style.width = cashPct + '%';
+            document.getElementById('pos-cash').textContent = '现金 ' + cashPct + '%';
+
+            var rebalanceEl = document.getElementById('rebalance-status');
+            if (latest.rebalance) {
+                rebalanceEl.innerHTML = '<span class="rebalance-badge">' + latest.rebalance + '</span>';
+            } else {
+                rebalanceEl.innerHTML = '<span class="rebalance-badge none">无需操作</span>';
+            }
 
             renderSignalsTable(signals);
             renderChart(history, lower, upper);
@@ -342,12 +363,15 @@
             tbody.innerHTML = signals.slice(0, 20).map(s => {
                 const tagClass = s.signal_type === 'growth' ? 'growth' :
                                 s.signal_type === 'dividend' ? 'dividend' : 'hold';
+                var rebalanceHtml = s.rebalance
+                    ? '<span class="rebalance-badge">' + s.rebalance + '</span>'
+                    : '<span class="rebalance-badge none">--</span>';
                 return '<tr>' +
                     '<td>' + s.date + '</td>' +
                     '<td>' + (s.time || '--') + '</td>' +
                     '<td>' + s.r_value.toFixed(4) + '</td>' +
                     '<td><span class="tag ' + tagClass + '">' + s.signal_desc + '</span></td>' +
-                    '<td>' + s.position_level + '档</td>' +
+                    '<td>' + rebalanceHtml + '</td>' +
                     '</tr>';
             }).join('');
         }
@@ -356,8 +380,6 @@
             const chart = echarts.init(document.getElementById('chart'));
             const dates = history.map(h => h.date);
             const rValues = history.map(h => h.r_value);
-            const growthPrices = history.map(h => h.growth_price);
-            const dividendPrices = history.map(h => h.dividend_price);
 
             const option = {
                 tooltip: {

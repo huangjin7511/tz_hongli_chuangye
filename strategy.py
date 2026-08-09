@@ -2,7 +2,6 @@ import json
 import os
 import sys
 import time
-import hashlib
 import re
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -15,6 +14,42 @@ DATA_DIR.mkdir(exist_ok=True)
 CONFIG_PATH = BASE_DIR / "config.json"
 
 
+# ==================== 交易日判断 ====================
+
+# A股休市节假日（固定日期，月-日）
+FIXED_HOLIDAYS = {
+    "01-01",  # 元旦
+    "05-01",  # 劳动节
+    "10-01", "10-02", "10-03", "10-04", "10-05", "10-06", "10-07",  # 国庆
+}
+
+# 农历节假日（近似日期，按年维护，需定期更新）
+LUNAR_HOLIDAYS = {
+    2026: {"02-16", "02-17", "02-18", "02-19", "02-20", "02-21", "02-22"},  # 春节
+    2027: {"02-06", "02-07", "02-08", "02-09", "02-10", "02-11", "02-12"},
+    2025: {"01-28", "01-29", "01-30", "01-31", "02-03", "02-04"},
+    2024: {"02-10", "02-11", "02-12", "02-13", "02-14", "02-15", "02-16"},
+    2028: {"01-26", "01-27", "01-28", "01-29", "01-30", "01-31", "02-01"},
+}
+
+
+def is_trading_day(dt=None):
+    """判断是否为A股交易日"""
+    if dt is None:
+        dt = datetime.now()
+    if dt.weekday() >= 5:
+        return False
+    md = dt.strftime("%m-%d")
+    if md in FIXED_HOLIDAYS:
+        return False
+    year_holidays = LUNAR_HOLIDAYS.get(dt.year, set())
+    if md in year_holidays:
+        return False
+    return True
+
+
+# ==================== 配置 ====================
+
 def load_config():
     with open(CONFIG_PATH, "r", encoding="utf-8") as f:
         config = json.load(f)
@@ -24,10 +59,10 @@ def load_config():
     return config
 
 
+# ==================== 数据获取 ====================
+
 def _validate_price(price):
-    if price is None or price <= 0:
-        return False
-    return True
+    return price is not None and price > 0
 
 
 def fetch_sina_price(sina_code):
@@ -57,8 +92,6 @@ def fetch_eastmoney_price(code, market):
         secids_to_try.append(f"0.{code}")
     elif market == "sh":
         secids_to_try.append(f"1.{code}")
-    elif market == "csi":
-        secids_to_try.extend([f"0.{code}", f"1.{code}"])
     else:
         secids_to_try.extend([f"0.{code}", f"1.{code}"])
     secids_to_try.append(f"2.{code}")
@@ -139,29 +172,68 @@ def fetch_price_with_sources(sina_codes, code, market, retries=2):
     raise RuntimeError("所有数据源均失败:\n" + "\n".join(f"  - {e}" for e in errors))
 
 
-def calculate_position(r_value, lower, upper):
-    if r_value <= lower:
-        return 9, "创业板（满仓）"
-    elif r_value >= upper:
-        return 1, "中证红利（满仓）"
-    else:
-        ratio = (r_value - lower) / (upper - lower)
-        level = round(1 + ratio * 8)
-        level = max(1, min(9, level))
-        growth_pct = round(ratio * 100, 1)
-        dividend_pct = round((1 - ratio) * 100, 1)
-        desc = f"混合（创业板{growth_pct}% / 红利{dividend_pct}%）"
-        return level, desc
-
+# ==================== 策略逻辑 ====================
 
 def generate_signal(r_value, lower, upper):
-    if r_value <= lower:
+    """根据R值生成轮动信号"""
+    if r_value < lower:
         return "切换至创业板", "growth"
-    elif r_value >= upper:
+    elif r_value > upper:
         return "切换至中证红利", "dividend"
     else:
         return "维持当前仓位", "hold"
 
+
+def check_rebalance(history, config):
+    """检查是否需要再平衡"""
+    pos_cfg = config["position"]
+    index_pct = pos_cfg["index_pct"]
+    drift_threshold = pos_cfg.get("rebalance_drift", 0.05)
+    now = datetime.now()
+
+    rebalance_reason = None
+
+    # 年度再平衡：每年1月第一个交易日
+    if pos_cfg.get("rebalance_annual", True):
+        if now.month == 1 and now.day <= 10:
+            if history:
+                last_record = history[-1]
+                last_date = last_record.get("date", "")
+                last_year = last_date[:4] if last_date else ""
+                if last_year and last_year != str(now.year - 1):
+                    pass  # 还没记录去年数据，跳过
+                elif last_year == str(now.year - 1):
+                    rebalance_reason = "年度再平衡"
+
+    # 偏移5%再平衡：通过历史价格变化模拟偏移
+    if not rebalance_reason and len(history) >= 2:
+        # 检查最近一次切换信号以来的涨跌偏移
+        last_signal = history[-1].get("signal_type", "hold")
+        if last_signal in ("growth", "dividend"):
+            # 找到最近一次信号切换点
+            switch_idx = None
+            for i in range(len(history) - 1, -1, -1):
+                if history[i].get("signal_type") in ("growth", "dividend"):
+                    switch_idx = i
+                    break
+            if switch_idx is not None and switch_idx < len(history) - 1:
+                switch_rec = history[switch_idx]
+                latest_rec = history[-1]
+                if last_signal == "growth":
+                    price_then = switch_rec.get("growth_price", 0)
+                    price_now = latest_rec.get("growth_price", 0)
+                else:
+                    price_then = switch_rec.get("dividend_price", 0)
+                    price_now = latest_rec.get("dividend_price", 0)
+                if price_then > 0:
+                    drift = abs(price_now / price_then - 1)
+                    if drift >= drift_threshold:
+                        rebalance_reason = f"偏移再平衡({drift*100:.1f}%)"
+
+    return rebalance_reason
+
+
+# ==================== 数据持久化 ====================
 
 def load_json(filepath, default=None):
     if os.path.exists(filepath):
@@ -195,27 +267,7 @@ def update_signals(signals_path, record):
     return signals
 
 
-def push_wechat(webhook_url, message):
-    if not webhook_url or webhook_url == "${WECHAT_WEBHOOK_URL}":
-        print("  企业微信 Webhook 未配置，跳过推送")
-        return False
-    try:
-        payload = {
-            "msgtype": "markdown",
-            "markdown": {"content": message}
-        }
-        resp = requests.post(webhook_url, json=payload, timeout=10)
-        result = resp.json()
-        if result.get("errcode") == 0:
-            print("  企业微信推送成功")
-            return True
-        else:
-            print(f"  企业微信推送失败: {result}")
-            return False
-    except Exception as e:
-        print(f"  企业微信推送异常: {e}")
-        return False
-
+# ==================== 阈值优化 ====================
 
 def optimize_thresholds(history_path):
     history = load_json(history_path, default=[])
@@ -237,65 +289,94 @@ def optimize_thresholds(history_path):
 
 
 def backtest_strategy(history, lower, upper):
+    """回测：80%指数+20%现金"""
     if len(history) < 2:
         return 0
-    growth_value = 1.0
-    dividend_value = 1.0
-    position = 5
+    portfolio = 1.0
     for i in range(1, len(history)):
         prev = history[i - 1]
         curr = history[i]
         r_prev = prev.get("r_value", 0)
-        if r_prev <= lower:
-            position = 9
-        elif r_prev >= upper:
-            position = 1
-        growth_ret = (curr.get("growth_price", 0) / prev.get("growth_price", 1)) - 1 if prev.get("growth_price") else 0
-        dividend_ret = (curr.get("dividend_price", 0) / prev.get("dividend_price", 1)) - 1 if prev.get("dividend_price") else 0
-        growth_value *= (1 + growth_ret * (position / 9))
-        dividend_value *= (1 + dividend_ret * (1 - position / 9))
-    total = growth_value + dividend_value
-    return total
+        if r_prev < lower:
+            index_ret = (curr.get("growth_price", 0) / prev.get("growth_price", 1)) - 1
+        elif r_prev > upper:
+            index_ret = (curr.get("dividend_price", 0) / prev.get("dividend_price", 1)) - 1
+        else:
+            index_ret = 0
+        daily_ret = index_ret * 0.8
+        portfolio *= (1 + daily_ret)
+    return portfolio
 
 
-def build_markdown_message(record, config, optimal=None):
+# ==================== 消息推送 ====================
+
+def push_wechat(webhook_url, message):
+    if not webhook_url or webhook_url == "${WECHAT_WEBHOOK_URL}":
+        print("  企业微信 Webhook 未配置，跳过推送")
+        return False
+    try:
+        payload = {
+            "msgtype": "text",
+            "text": {"content": message}
+        }
+        resp = requests.post(webhook_url, json=payload, timeout=10)
+        result = resp.json()
+        if result.get("errcode") == 0:
+            print("  企业微信推送成功")
+            return True
+        else:
+            print(f"  企业微信推送失败: {result}")
+            return False
+    except Exception as e:
+        print(f"  企业微信推送异常: {e}")
+        return False
+
+
+def build_text_message(record, config, rebalance_reason=None, optimal=None):
     thresholds = config["thresholds"]
+    pos_cfg = config["position"]
     lines = []
-    lines.append(f"## 📊 {config['strategy']['name']}")
-    lines.append("")
-    lines.append(f"**日期**: {record['date']}")
-    lines.append(f"**时间**: {record['time']}")
-    lines.append("")
-    lines.append(f"| 指数 | 价格 |")
-    lines.append(f"|------|------|")
-    lines.append(f"| 创业板指数 | {record['growth_price']:.2f} |")
-    lines.append(f"| 中证红利指数 | {record['dividend_price']:.2f} |")
-    lines.append("")
-    lines.append(f"**R 值**: `{record['r_value']:.4f}`")
-    lines.append(f"**阈值区间**: {thresholds['lower']} ~ {thresholds['upper']}")
-    lines.append("")
-    lines.append(f"**信号**: **{record['signal_desc']}**")
-    lines.append(f"**仓位**: {record['position_level']}档 ({record['position_desc']})")
-    lines.append("")
+    lines.append(f"【{config['strategy']['name']}】")
+    lines.append(f"日期: {record['date']} {record['time']}")
+    lines.append(f"")
+    lines.append(f"创业板指数: {record['growth_price']:.2f}")
+    lines.append(f"中证红利指数: {record['dividend_price']:.2f}")
+    lines.append(f"R值: {record['r_value']:.4f}")
+    lines.append(f"阈值区间: {thresholds['lower']} ~ {thresholds['upper']}")
+    lines.append(f"")
+    lines.append(f"信号: {record['signal_desc']}")
+    lines.append(f"配置: {pos_cfg['index_pct']*100:.0f}%指数 + {pos_cfg['cash_pct']*100:.0f}%现金")
+    if rebalance_reason:
+        lines.append(f"再平衡: {rebalance_reason}")
+    else:
+        lines.append(f"再平衡: 无需操作")
     if optimal:
-        lines.append(f"---")
-        lines.append(f"**💡 历史回测优化阈值**: `{optimal['lower']}` ~ `{optimal['upper']}` (得分: {optimal['score']:.4f})")
-        lines.append("")
-    lines.append(f"> R = 创业板指数 ÷ 中证红利指数")
+        lines.append(f"")
+        lines.append(f"回测优化阈值: {optimal['lower']} ~ {optimal['upper']} (得分: {optimal['score']:.4f})")
     return "\n".join(lines)
 
+
+# ==================== 主流程 ====================
 
 def main():
     print("=" * 50)
     print("  创业板 / 中证红利 轮动策略")
     print("=" * 50)
 
+    # 交易日检查
+    now = datetime.now()
+    if not is_trading_day(now):
+        print(f"\n  今天({now.strftime('%Y-%m-%d %A')})不是交易日，跳过执行")
+        return 0
+
     config = load_config()
     thresholds = config["thresholds"]
+    pos_cfg = config["position"]
 
     print(f"\n策略参数:")
     print(f"  阈值区间: {thresholds['lower']} ~ {thresholds['upper']}")
-    print(f"  仓位档数: {config['position']['levels']}")
+    print(f"  仓位配置: {pos_cfg['index_pct']*100:.0f}%指数 + {pos_cfg['cash_pct']*100:.0f}%现金")
+    print(f"  再平衡: 年度={'是' if pos_cfg.get('rebalance_annual') else '否'}, 偏移阈值={pos_cfg.get('rebalance_drift', 0.05)*100:.0f}%")
     print()
 
     print("正在获取指数数据...")
@@ -315,17 +396,23 @@ def main():
     r_value = growth_price / dividend_price
     print(f"\n  R 值 = {growth_price:.2f} / {dividend_price:.2f} = {r_value:.4f}")
 
-    position_level, position_desc = calculate_position(
-        r_value, thresholds["lower"], thresholds["upper"]
-    )
     signal, signal_type = generate_signal(
         r_value, thresholds["lower"], thresholds["upper"]
     )
 
     print(f"\n  信号: {signal}")
-    print(f"  仓位: {position_level}档 - {position_desc}")
 
-    now = datetime.now()
+    history_path = DATA_DIR / "history.json"
+    signals_path = DATA_DIR / "signals.json"
+
+    # 加载历史数据检查再平衡
+    history = load_json(str(history_path), default=[])
+    rebalance_reason = check_rebalance(history, config)
+    if rebalance_reason:
+        print(f"  再平衡触发: {rebalance_reason}")
+    else:
+        print(f"  再平衡: 无需操作")
+
     record = {
         "date": now.strftime("%Y-%m-%d"),
         "time": now.strftime("%H:%M:%S"),
@@ -336,19 +423,17 @@ def main():
         "signal": signal,
         "signal_type": signal_type,
         "signal_desc": signal,
-        "position_level": position_level,
-        "position_desc": position_desc,
+        "index_pct": pos_cfg["index_pct"],
+        "cash_pct": pos_cfg["cash_pct"],
+        "rebalance": rebalance_reason,
         "threshold_lower": thresholds["lower"],
         "threshold_upper": thresholds["upper"],
     }
 
-    history_path = DATA_DIR / "history.json"
-    signals_path = DATA_DIR / "signals.json"
-
     update_history(history_path, record)
     print(f"\n  历史数据已保存 ({history_path})")
 
-    signals = update_signals(signals_path, record)
+    update_signals(signals_path, record)
     print(f"  信号记录已保存 ({signals_path})")
 
     print("\n正在进行历史回测优化...")
@@ -369,7 +454,7 @@ def main():
 
     if config["wechat"]["enabled"]:
         print("\n正在推送企业微信...")
-        message = build_markdown_message(record, config, optimal)
+        message = build_text_message(record, config, rebalance_reason, optimal)
         push_wechat(config["wechat"]["webhook_url"], message)
 
     print("\n" + "=" * 50)
