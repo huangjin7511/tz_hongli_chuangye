@@ -187,7 +187,6 @@ def generate_signal(r_value, lower, upper):
 def check_rebalance(history, config):
     """检查是否需要再平衡"""
     pos_cfg = config["position"]
-    index_pct = pos_cfg["index_pct"]
     drift_threshold = pos_cfg.get("rebalance_drift", 0.05)
     now = datetime.now()
 
@@ -207,10 +206,8 @@ def check_rebalance(history, config):
 
     # 偏移5%再平衡：通过历史价格变化模拟偏移
     if not rebalance_reason and len(history) >= 2:
-        # 检查最近一次切换信号以来的涨跌偏移
         last_signal = history[-1].get("signal_type", "hold")
         if last_signal in ("growth", "dividend"):
-            # 找到最近一次信号切换点
             switch_idx = None
             for i in range(len(history) - 1, -1, -1):
                 if history[i].get("signal_type") in ("growth", "dividend"):

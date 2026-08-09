@@ -25,24 +25,41 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Check if today is a trading day
+        id: check_trading_day
+        run: |
+          TODAY=$(TZ='Asia/Shanghai' date '+%Y-%m-%d')
+          RESPONSE=$(curl -s "https://tool.bitefu.net/jiari/?d=${TODAY}")
+          echo "API returned: '$RESPONSE' for $TODAY"
+          if [ "$RESPONSE" = "0" ]; then
+            echo "Today ($TODAY) is a trading day. Proceeding."
+            echo "IS_TRADING_DAY=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Today ($TODAY) is NOT a trading day (response=$RESPONSE). Skipping."
+            echo "IS_TRADING_DAY=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Set up Python
+        if: steps.check_trading_day.outputs.IS_TRADING_DAY == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
       - name: Install dependencies
+        if: steps.check_trading_day.outputs.IS_TRADING_DAY == 'true'
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Check trading day & Run strategy
+      - name: Run strategy
+        if: steps.check_trading_day.outputs.IS_TRADING_DAY == 'true'
         env:
           WECHAT_WEBHOOK_URL: ${{ secrets.WECHAT_WEBHOOK_URL }}
         run: |
-          python -c "from strategy import is_trading_day; exit(0 if is_trading_day() else 1)" || (echo "Today is not a trading day, skipping..." && exit 0)
           python strategy.py
 
       - name: Commit data files
+        if: steps.check_trading_day.outputs.IS_TRADING_DAY == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -50,7 +67,7 @@ jobs:
           git diff --cached --quiet || (git commit -m "chore: update strategy data $(date +%Y-%m-%d)" && git push)
 
       - name: Upload artifact
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && steps.check_trading_day.outputs.IS_TRADING_DAY == 'true'
         uses: actions/upload-pages-artifact@v3
         with:
           path: .

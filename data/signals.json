@@ -12,7 +12,7 @@
     "index_pct": 0.8,
     "cash_pct": 0.2,
     "rebalance": null,
-    "threshold_lower": 0.35,
-    "threshold_upper": 0.6
+    "threshold_lower": 0.33,
+    "threshold_upper": 0.62
   }
 ]
