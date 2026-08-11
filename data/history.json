@@ -15,6 +15,36 @@
     "threshold_upper": 0.62
   },
   {
+    "date": "2026-08-10",
+    "time": "07:11:11",
+    "timestamp": "2026-08-10T07:11:11.641443",
+    "growth_price": 3537.214,
+    "dividend_price": 5561.23,
+    "r_value": 0.636,
+    "signal": "切换至中证红利",
+    "signal_type": "dividend",
+    "signal_desc": "切换至中证红利",
+    "index_pct": 0.8,
+    "cash_pct": 0.2,
+    "threshold_lower": 0.33,
+    "threshold_upper": 0.62
+  },
+  {
+    "date": "2026-08-11",
+    "time": "06:48:55",
+    "timestamp": "2026-08-11T06:48:55.156657",
+    "growth_price": 3553.318,
+    "dividend_price": 5530.45,
+    "r_value": 0.6425,
+    "signal": "切换至中证红利",
+    "signal_type": "dividend",
+    "signal_desc": "切换至中证红利",
+    "index_pct": 0.8,
+    "cash_pct": 0.2,
+    "threshold_lower": 0.33,
+    "threshold_upper": 0.62
+  },
+  {
     "date": "2026-08-11",
     "time": "22:23:15",
     "timestamp": "2026-08-11T22:23:15.951493",
