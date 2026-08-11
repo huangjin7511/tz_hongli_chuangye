@@ -159,16 +159,6 @@
         .tag.growth { background: rgba(58, 123, 213, 0.2); color: #64b5f6; }
         .tag.dividend { background: rgba(255, 107, 107, 0.2); color: #ff8a80; }
         .tag.hold { background: rgba(255, 215, 0, 0.2); color: #ffd54f; }
-        .rebalance-badge {
-            display: inline-block;
-            padding: 3px 10px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: 500;
-            background: rgba(255, 215, 0, 0.2);
-            color: #ffd54f;
-        }
-        .rebalance-badge.none { background: rgba(160, 174, 192, 0.1); color: #8892b0; }
         .footer {
             text-align: center;
             padding: 20px;
@@ -197,7 +187,7 @@
     <div class="container">
         <div class="header">
             <h1>📈 创业板 / 中证红利 轮动策略</h1>
-            <div class="subtitle">80%指数 + 20%现金 | 年度再平衡 + 偏移5%再平衡</div>
+            <div class="subtitle">80%投资 + 20%现金 | 现金永不交易、永不挪用、不再平衡</div>
         </div>
 
         <div id="loading" class="card loading">
@@ -251,11 +241,11 @@
                     </div>
                     <div class="info-row">
                         <span class="info-label">切换规则</span>
-                        <span class="info-value">R＜0.35 → 创业板 | R＞0.60 → 红利</span>
+                        <span class="info-value">R＜0.33 → 创业板ETF(159915) | R＞0.62 → 红利ETF(510880/515080)</span>
                     </div>
                     <div class="info-row">
-                        <span class="info-label">再平衡状态</span>
-                        <span class="info-value" id="rebalance-status">--</span>
+                        <span class="info-label">现金工具</span>
+                        <span class="info-value">场内货基 511880/511990（永不交易、不再平衡）</span>
                     </div>
                 </div>
             </div>
@@ -275,7 +265,7 @@
                                 <th>时间</th>
                                 <th>R值</th>
                                 <th>信号</th>
-                                <th>再平衡</th>
+                                <th>投资标的</th>
                             </tr>
                         </thead>
                         <tbody id="signals-body">
@@ -286,8 +276,9 @@
             </div>
 
             <div class="footer">
-                <p>策略基于 R = 创业板指数 ÷ 中证红利指数 的比值进行轮动，80%指数+20%现金</p>
-                <p>交易日 14:30 (北京时间) 更新 · 仅供参考，不构成投资建议</p>
+                <p>策略基于 R = 创业板指数 ÷ 中证红利指数 的比值进行轮动，80%投资+20%现金</p>
+                <p>投资标的: 创业板ETF(159915) / 红利ETF(510880/515080) · 现金: 场内货基(511880/511990)</p>
+                <p>交易日 14:00 (北京时间) 更新 · 仅供参考，不构成投资建议</p>
             </div>
         </div>
     </div>
@@ -326,9 +317,11 @@
                                latest.signal_type === 'dividend' ? 'danger' : 'warning';
             signalEl.className = 'metric-value ' + signalClass;
 
-            var indexLabel = latest.signal_type === 'growth' ? '创业板' :
-                             latest.signal_type === 'dividend' ? '中证红利' : '持有';
-            document.getElementById('position-level').textContent = indexLabel + ' ' + indexPct + '% + 现金 ' + cashPct + '%';
+            var indexLabel = latest.signal_type === 'growth' ? '创业板ETF' :
+                             latest.signal_type === 'dividend' ? '红利ETF' : '持有';
+            var etfCode = latest.signal_type === 'growth' ? '159915' :
+                          latest.signal_type === 'dividend' ? '510880/515080' : '--';
+            document.getElementById('position-level').textContent = indexPct + '%投资 + ' + cashPct + '%现金';
             document.getElementById('date-value').textContent = latest.date;
 
             document.getElementById('growth-price').textContent = latest.growth_price.toFixed(2);
@@ -338,14 +331,7 @@
             document.getElementById('pos-index').style.width = indexPct + '%';
             document.getElementById('pos-index').textContent = indexLabel + ' ' + indexPct + '%';
             document.getElementById('pos-cash').style.width = cashPct + '%';
-            document.getElementById('pos-cash').textContent = '现金 ' + cashPct + '%';
-
-            var rebalanceEl = document.getElementById('rebalance-status');
-            if (latest.rebalance) {
-                rebalanceEl.innerHTML = '<span class="rebalance-badge">' + latest.rebalance + '</span>';
-            } else {
-                rebalanceEl.innerHTML = '<span class="rebalance-badge none">无需操作</span>';
-            }
+            document.getElementById('pos-cash').textContent = '货基 ' + cashPct + '%';
 
             renderSignalsTable(signals);
             renderChart(history, lower, upper);
@@ -363,15 +349,14 @@
             tbody.innerHTML = signals.slice(0, 20).map(s => {
                 const tagClass = s.signal_type === 'growth' ? 'growth' :
                                 s.signal_type === 'dividend' ? 'dividend' : 'hold';
-                var rebalanceHtml = s.rebalance
-                    ? '<span class="rebalance-badge">' + s.rebalance + '</span>'
-                    : '<span class="rebalance-badge none">--</span>';
+                var etfLabel = s.signal_type === 'growth' ? '创业板ETF(159915)' :
+                               s.signal_type === 'dividend' ? '红利ETF(510880/515080)' : '维持持仓';
                 return '<tr>' +
                     '<td>' + s.date + '</td>' +
                     '<td>' + (s.time || '--') + '</td>' +
                     '<td>' + s.r_value.toFixed(4) + '</td>' +
                     '<td><span class="tag ' + tagClass + '">' + s.signal_desc + '</span></td>' +
-                    '<td>' + rebalanceHtml + '</td>' +
+                    '<td>' + etfLabel + '</td>' +
                     '</tr>';
             }).join('');
         }

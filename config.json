@@ -17,17 +17,32 @@
             "sina_codes": ["sh000922"]
         }
     },
+    "etfs": {
+        "growth_etf": {
+            "name": "创业板ETF",
+            "code": "159915",
+            "market": "sz"
+        },
+        "dividend_etf": {
+            "name": "红利ETF",
+            "codes": ["510880", "515080"],
+            "market": "sh"
+        },
+        "cash_etf": {
+            "name": "场内货基",
+            "codes": ["511880", "511990"],
+            "description": "银华日利/华宝添益，永不主动交易、永不挪用、不再平衡"
+        }
+    },
     "thresholds": {
         "lower": 0.33,
         "upper": 0.62,
-        "description": "R = 创业板指数 / 中证红利指数。R < 下限切换至创业板，R > 上限切换至中证红利"
+        "description": "R = 创业板指数 / 中证红利指数。R < 0.33切换至创业板，R > 0.62切换至红利，区间内维持不动"
     },
     "position": {
         "index_pct": 0.8,
         "cash_pct": 0.2,
-        "rebalance_annual": true,
-        "rebalance_drift": 0.05,
-        "description": "80%指数 + 20%现金，年度再平衡 + 偏移5%再平衡"
+        "description": "80%投资 + 20%现金。现金永不主动交易、永不挪用、不再平衡"
     },
     "wechat": {
         "webhook_url": "${WECHAT_WEBHOOK_URL}",

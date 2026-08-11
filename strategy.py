@@ -184,52 +184,6 @@ def generate_signal(r_value, lower, upper):
         return "维持当前仓位", "hold"
 
 
-def check_rebalance(history, config):
-    """检查是否需要再平衡"""
-    pos_cfg = config["position"]
-    drift_threshold = pos_cfg.get("rebalance_drift", 0.05)
-    now = datetime.now()
-
-    rebalance_reason = None
-
-    # 年度再平衡：每年1月第一个交易日
-    if pos_cfg.get("rebalance_annual", True):
-        if now.month == 1 and now.day <= 10:
-            if history:
-                last_record = history[-1]
-                last_date = last_record.get("date", "")
-                last_year = last_date[:4] if last_date else ""
-                if last_year and last_year != str(now.year - 1):
-                    pass  # 还没记录去年数据，跳过
-                elif last_year == str(now.year - 1):
-                    rebalance_reason = "年度再平衡"
-
-    # 偏移5%再平衡：通过历史价格变化模拟偏移
-    if not rebalance_reason and len(history) >= 2:
-        last_signal = history[-1].get("signal_type", "hold")
-        if last_signal in ("growth", "dividend"):
-            switch_idx = None
-            for i in range(len(history) - 1, -1, -1):
-                if history[i].get("signal_type") in ("growth", "dividend"):
-                    switch_idx = i
-                    break
-            if switch_idx is not None and switch_idx < len(history) - 1:
-                switch_rec = history[switch_idx]
-                latest_rec = history[-1]
-                if last_signal == "growth":
-                    price_then = switch_rec.get("growth_price", 0)
-                    price_now = latest_rec.get("growth_price", 0)
-                else:
-                    price_then = switch_rec.get("dividend_price", 0)
-                    price_now = latest_rec.get("dividend_price", 0)
-                if price_then > 0:
-                    drift = abs(price_now / price_then - 1)
-                    if drift >= drift_threshold:
-                        rebalance_reason = f"偏移再平衡({drift*100:.1f}%)"
-
-    return rebalance_reason
-
-
 # ==================== 数据持久化 ====================
 
 def load_json(filepath, default=None):
@@ -329,9 +283,25 @@ def push_wechat(webhook_url, message):
         return False
 
 
-def build_text_message(record, config, rebalance_reason=None, optimal=None):
+def build_text_message(record, config, optimal=None):
     thresholds = config["thresholds"]
     pos_cfg = config["position"]
+    etfs = config.get("etfs", {})
+    growth_etf = etfs.get("growth_etf", {})
+    dividend_etf = etfs.get("dividend_etf", {})
+    cash_etf = etfs.get("cash_etf", {})
+
+    # 根据信号确定投资标的
+    if record["signal_type"] == "growth":
+        invest_target = f"创业板ETF({growth_etf.get('code', '159915')})"
+    elif record["signal_type"] == "dividend":
+        div_codes = dividend_etf.get("codes", ["510880", "515080"])
+        invest_target = f"红利ETF({'/'.join(div_codes)})"
+    else:
+        invest_target = "维持当前持仓"
+
+    cash_info = cash_etf.get("codes", ["511880", "511990"])
+
     lines = []
     lines.append(f"【{config['strategy']['name']}】")
     lines.append(f"日期: {record['date']} {record['time']}")
@@ -342,11 +312,10 @@ def build_text_message(record, config, rebalance_reason=None, optimal=None):
     lines.append(f"阈值区间: {thresholds['lower']} ~ {thresholds['upper']}")
     lines.append(f"")
     lines.append(f"信号: {record['signal_desc']}")
-    lines.append(f"配置: {pos_cfg['index_pct']*100:.0f}%指数 + {pos_cfg['cash_pct']*100:.0f}%现金")
-    if rebalance_reason:
-        lines.append(f"再平衡: {rebalance_reason}")
-    else:
-        lines.append(f"再平衡: 无需操作")
+    lines.append(f"投资标的: {invest_target}")
+    lines.append(f"配置: {pos_cfg['index_pct']*100:.0f}%投资 + {pos_cfg['cash_pct']*100:.0f}%现金")
+    lines.append(f"现金工具: 场内货基({'/'.join(cash_info)})")
+    lines.append(f"现金纪律: 永不交易、永不挪用、不再平衡")
     if optimal:
         lines.append(f"")
         lines.append(f"回测优化阈值: {optimal['lower']} ~ {optimal['upper']} (得分: {optimal['score']:.4f})")
@@ -372,8 +341,8 @@ def main():
 
     print(f"\n策略参数:")
     print(f"  阈值区间: {thresholds['lower']} ~ {thresholds['upper']}")
-    print(f"  仓位配置: {pos_cfg['index_pct']*100:.0f}%指数 + {pos_cfg['cash_pct']*100:.0f}%现金")
-    print(f"  再平衡: 年度={'是' if pos_cfg.get('rebalance_annual') else '否'}, 偏移阈值={pos_cfg.get('rebalance_drift', 0.05)*100:.0f}%")
+    print(f"  仓位配置: {pos_cfg['index_pct']*100:.0f}%投资 + {pos_cfg['cash_pct']*100:.0f}%现金")
+    print(f"  现金纪律: 永不交易、永不挪用、不再平衡")
     print()
 
     print("正在获取指数数据...")
@@ -402,14 +371,6 @@ def main():
     history_path = DATA_DIR / "history.json"
     signals_path = DATA_DIR / "signals.json"
 
-    # 加载历史数据检查再平衡
-    history = load_json(str(history_path), default=[])
-    rebalance_reason = check_rebalance(history, config)
-    if rebalance_reason:
-        print(f"  再平衡触发: {rebalance_reason}")
-    else:
-        print(f"  再平衡: 无需操作")
-
     record = {
         "date": now.strftime("%Y-%m-%d"),
         "time": now.strftime("%H:%M:%S"),
@@ -422,7 +383,6 @@ def main():
         "signal_desc": signal,
         "index_pct": pos_cfg["index_pct"],
         "cash_pct": pos_cfg["cash_pct"],
-        "rebalance": rebalance_reason,
         "threshold_lower": thresholds["lower"],
         "threshold_upper": thresholds["upper"],
     }
@@ -451,7 +411,7 @@ def main():
 
     if config["wechat"]["enabled"]:
         print("\n正在推送企业微信...")
-        message = build_text_message(record, config, rebalance_reason, optimal)
+        message = build_text_message(record, config, optimal)
         push_wechat(config["wechat"]["webhook_url"], message)
 
     print("\n" + "=" * 50)

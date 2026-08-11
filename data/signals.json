@@ -1,5 +1,20 @@
 [
   {
+    "date": "2026-08-11",
+    "time": "22:23:15",
+    "timestamp": "2026-08-11T22:23:15.951493",
+    "growth_price": 3549.164,
+    "dividend_price": 5531.31,
+    "r_value": 0.6416,
+    "signal": "切换至中证红利",
+    "signal_type": "dividend",
+    "signal_desc": "切换至中证红利",
+    "index_pct": 0.8,
+    "cash_pct": 0.2,
+    "threshold_lower": 0.33,
+    "threshold_upper": 0.62
+  },
+  {
     "date": "2026-08-09",
     "time": "18:07:37",
     "timestamp": "2026-08-09T18:07:37.314830",
@@ -11,7 +26,6 @@
     "signal_desc": "切换至中证红利",
     "index_pct": 0.8,
     "cash_pct": 0.2,
-    "rebalance": null,
     "threshold_lower": 0.33,
     "threshold_upper": 0.62
   }
