@@ -148,5 +148,20 @@
     "cash_pct": 0.2,
     "threshold_lower": 0.33,
     "threshold_upper": 0.62
+  },
+  {
+    "date": "2026-08-20",
+    "time": "06:28:04",
+    "timestamp": "2026-08-20T06:28:04.607589",
+    "growth_price": 3463.173,
+    "dividend_price": 5584.33,
+    "r_value": 0.6202,
+    "signal": "切换至中证红利",
+    "signal_type": "dividend",
+    "signal_desc": "切换至中证红利",
+    "index_pct": 0.8,
+    "cash_pct": 0.2,
+    "threshold_lower": 0.33,
+    "threshold_upper": 0.62
   }
 ]
